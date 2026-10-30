@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react'
 import { useStore } from './store/StoreProvider.jsx'
 import CameraModal from './components/CameraModal.jsx'
 import ProgressStepper from './components/ProgressStepper.jsx'
+import { useAuth } from './auth/AuthProvider.jsx'
+import Login from './auth/Login.jsx'
 import {
   Plus,
   ShieldCheck,
@@ -22,6 +24,7 @@ import {
   Building2,
   Receipt,
   BookOpen,
+  LogOut,
 } from 'lucide-react'
 
 function StatusPill({ status }) {
@@ -61,7 +64,15 @@ function Textarea(props) {
 
 export default function App() {
   const { state, dispatch, roles, vehicleTypes, materials, formatTimestamp } = useStore()
-  const role = state.role
+  const { user, profile, role: authRole, loading: authLoading, signOut } = useAuth()
+  const role = authRole || state.role
+
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center text-slate-600">Loading...</div>
+  }
+  if (!user || !profile) {
+    return <Login />
+  }
 
   const [view, setView] = useState('list') // list | create | detail
   const [activeId, setActiveId] = useState(null)
@@ -257,21 +268,14 @@ export default function App() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1">
-              {roles.map((r) => (
-                <button
-                  key={r}
-                  onClick={() => dispatch({ type: 'SET_ROLE', role: r })}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
-                    role === r ? 'bg-ink-950 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {r === 'Security' && <ShieldCheck className="h-4 w-4" />}
-                  {r === 'Devaraj' && <UserCog className="h-4 w-4" />}
-                  {r === 'Sharath' && <ShoppingBag className="h-4 w-4" />}
-                  {r}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5">
+              {role === 'Security' && <ShieldCheck className="h-4 w-4 text-slate-600" />}
+              {role === 'Devaraj' && <UserCog className="h-4 w-4 text-slate-600" />}
+              {role === 'Sharath' && <ShoppingBag className="h-4 w-4 text-slate-600" />}
+              <div>
+                <p className="text-sm font-medium text-slate-900 leading-none">{profile?.full_name || user?.email}</p>
+                <p className="text-xs text-slate-500 leading-none mt-0.5">{role}</p>
+              </div>
             </div>
             {role === 'Security' && (
               <button
@@ -284,6 +288,10 @@ export default function App() {
             )}
             <button onClick={() => setView('list')} className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
               Job Cards
+            </button>
+            <button onClick={signOut} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+              <LogOut className="h-4 w-4" />
+              Sign out
             </button>
           </div>
         </div>
