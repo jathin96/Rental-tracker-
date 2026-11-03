@@ -6,7 +6,7 @@ const STORAGE_KEY = 'gateflow_v1'
 
 const ROLES = ['Security', 'Devaraj', 'Sharath', 'Admin']
 
-const VEHICLE_TYPES = ['Tractor', 'JCB / Crane']
+const VEHICLE_TYPES = ['Tractor', 'JCB', 'Crane']
 
 const MATERIALS = ['Debris', 'M-Sand', 'Stone', 'Bricks', 'Tile', 'Chips']
 
