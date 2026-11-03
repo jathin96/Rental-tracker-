@@ -25,6 +25,7 @@ import {
   Receipt,
   BookOpen,
   LogOut,
+  Crown,
 } from 'lucide-react'
 
 function StatusPill({ status }) {
@@ -115,7 +116,7 @@ export default function App() {
   }
 
   function canCreateGate() {
-    if (role !== 'Security') return false
+    if (role !== 'Security' && role !== 'Admin') return false
     const v = gateForm
     if (!v.vehicleNumber.trim() || !v.vendorName.trim() || !v.driverName.trim() || !v.requesterName.trim() || !v.location.trim()) return false
     if (!validatePhone(v.driverPhone.trim())) return false
@@ -146,22 +147,19 @@ export default function App() {
   }
 
   function approveEntry(id) {
-    if (role !== 'Devaraj') return
+    if (role !== 'Devaraj' && role !== 'Admin') return
     dispatch({ type: 'APPROVE_ENTRY', id })
   }
 
   function rejectEntry(id) {
-    if (role !== 'Devaraj') return
+    if (role !== 'Devaraj' && role !== 'Admin') return
     const reason = window.prompt('Enter rejection reason (optional):') || 'Rejected'
     dispatch({ type: 'REJECT_ENTRY', id, reason })
   }
 
   function canAddTrip(jc) {
-    if (role !== 'Security') return false
+    if (role !== 'Security' && role !== 'Admin') return false
     if (jc.status !== 'APPROVED_FOR_WORK') return false
-    if (jc.vehicleType !== 'Tractor' && jc.gateEntry?.vehicleType !== 'Tractor') {
-      // also check stored
-    }
     if (!tripPhoto) return false
     return true
   }
@@ -173,7 +171,7 @@ export default function App() {
   }
 
   function canPreClose(jc) {
-    if (role !== 'Security') return false
+    if (role !== 'Security' && role !== 'Admin') return false
     if (jc.status !== 'APPROVED_FOR_WORK') return false
     const vt = jc.gateEntry?.vehicleType
     if (vt === 'Tractor') {
@@ -198,18 +196,18 @@ export default function App() {
   }
 
   function approvePreClose(id) {
-    if (role !== 'Devaraj') return
+    if (role !== 'Devaraj' && role !== 'Admin') return
     dispatch({ type: 'APPROVE_PRE_CLOSE', id })
   }
 
   function rejectPreClose(id) {
-    if (role !== 'Devaraj') return
+    if (role !== 'Devaraj' && role !== 'Admin') return
     const reason = window.prompt('Enter rejection reason (optional):') || 'Pre-close rejected'
     dispatch({ type: 'REJECT_PRE_CLOSE', id, reason })
   }
 
   function canSubmitBilling(jc) {
-    if (role !== 'Sharath') return false
+    if (role !== 'Sharath' && role !== 'Admin') return false
     if (jc.status !== 'PENDING_BILLING') return false
     if (!billForm.invoiceNumber.trim()) return false
     if (billForm.billAmount === '' || billForm.billAmount === null) return false
@@ -237,11 +235,14 @@ export default function App() {
   }
 
   function approveFullClose(id) {
-    if (role !== 'Devaraj') return
+    if (role !== 'Devaraj' && role !== 'Admin') return
     dispatch({ type: 'APPROVE_FULL_CLOSE', id })
   }
 
   const queue = useMemo(() => {
+    if (role === 'Admin') {
+      return state.jobCards
+    }
     if (role === 'Devaraj') {
       return state.jobCards.filter((jc) => jc.status === 'PENDING_ENTRY_APPROVAL' || jc.status === 'PENDING_PRECLOSE_APPROVAL' || jc.status === 'PENDING_FULL_CLOSE_APPROVAL')
     }
@@ -272,12 +273,13 @@ export default function App() {
               {role === 'Security' && <ShieldCheck className="h-4 w-4 text-slate-600" />}
               {role === 'Devaraj' && <UserCog className="h-4 w-4 text-slate-600" />}
               {role === 'Sharath' && <ShoppingBag className="h-4 w-4 text-slate-600" />}
+              {role === 'Admin' && <Crown className="h-4 w-4 text-amber-600" />}
               <div>
                 <p className="text-sm font-medium text-slate-900 leading-none">{profile?.full_name || user?.email}</p>
                 <p className="text-xs text-slate-500 leading-none mt-0.5">{role}</p>
               </div>
             </div>
-            {role === 'Security' && (
+            {(role === 'Security' || role === 'Admin') && (
               <button
                 onClick={() => setView('create')}
                 className="flex items-center gap-2 rounded-full bg-safety-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-safety-400"
@@ -307,6 +309,7 @@ export default function App() {
                   {role === 'Devaraj' && 'Approvals queue'}
                   {role === 'Sharath' && 'Ready for billing'}
                   {role === 'Security' && 'All job cards'}
+                  {role === 'Admin' && 'All job cards (Full Access)'}
                 </p>
               </div>
               <div className="text-sm text-slate-500">{queue.length} card(s)</div>
@@ -522,7 +525,7 @@ export default function App() {
                   )}
                 </div>
 
-                {(role === 'Devaraj' && activeJC.status === 'PENDING_ENTRY_APPROVAL') && (
+                {((role === 'Devaraj' || role === 'Admin') && activeJC.status === 'PENDING_ENTRY_APPROVAL') && (
                   <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 shadow-card">
                     <div className="flex items-center gap-2">
                       <UserCog className="h-5 w-5 text-amber-700" />
@@ -542,7 +545,7 @@ export default function App() {
                   </div>
                 )}
 
-                {activeJC.status === 'APPROVED_FOR_WORK' && role === 'Security' && (
+                {activeJC.status === 'APPROVED_FOR_WORK' && (role === 'Security' || role === 'Admin') && (
                   <div className="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-card">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -678,7 +681,7 @@ export default function App() {
                   </div>
                 )}
 
-                {(role === 'Devaraj' && activeJC.status === 'PENDING_PRECLOSE_APPROVAL') && (
+                {((role === 'Devaraj' || role === 'Admin') && activeJC.status === 'PENDING_PRECLOSE_APPROVAL') && (
                   <div class="rounded-3xl border border-violet-200 bg-violet-50/80 p-6 shadow-card">
                     <div class="flex items-center gap-2">
                       <UserCog class="h-5 w-5 text-violet-700" />
@@ -698,7 +701,7 @@ export default function App() {
                   </div>
                 )}
 
-                {(role === 'Sharath' && activeJC.status === 'PENDING_BILLING') && (
+                {((role === 'Sharath' || role === 'Admin') && activeJC.status === 'PENDING_BILLING') && (
                   <div class="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-card">
                     <div class="flex items-center justify-between">
                       <div class="flex items-center gap-2">
@@ -761,7 +764,7 @@ export default function App() {
                   </div>
                 )}
 
-                {(role === 'Devaraj' && activeJC.status === 'PENDING_FULL_CLOSE_APPROVAL') && (
+                {((role === 'Devaraj' || role === 'Admin') && activeJC.status === 'PENDING_FULL_CLOSE_APPROVAL') && (
                   <div class="rounded-3xl border border-fuchsia-200 bg-fuchsia-50/80 p-6 shadow-card">
                     <div class="flex items-center gap-2">
                       <UserCog class="h-5 w-5 text-fuchsia-700" />

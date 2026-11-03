@@ -4,7 +4,7 @@ const StoreContext = createContext(null)
 
 const STORAGE_KEY = 'gateflow_v1'
 
-const ROLES = ['Security', 'Devaraj', 'Sharath']
+const ROLES = ['Security', 'Devaraj', 'Sharath', 'Admin']
 
 const VEHICLE_TYPES = ['Tractor', 'JCB / Crane']
 
