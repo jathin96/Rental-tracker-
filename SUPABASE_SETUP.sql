@@ -8,7 +8,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
-  role text not null check (role in ('Security','Devaraj','Sharath')),
+  role text not null check (role in ('Security','Devaraj','Sharath','Admin')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
