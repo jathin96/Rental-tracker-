@@ -1,13 +1,11 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { useAuth } from '../auth/AuthProvider'
 
 const StoreContext = createContext(null)
 
-const STORAGE_KEY = 'gateflow_v1'
-
 const ROLES = ['Security', 'Devaraj', 'Sharath', 'Admin']
-
-const VEHICLE_TYPES = ['Tractor', 'JCB', 'Crane']
-
+const VEHICLE_TYPES = ['Tractor', 'JCB', 'Crane', 'Tipper', 'Lorry']
 const MATERIALS = ['Debris', 'M-Sand', 'Stone', 'Bricks', 'Tile', 'Chips']
 
 const STATUS = {
@@ -45,206 +43,7 @@ function formatTimestamp(iso) {
 function reducer(state, action) {
   switch (action.type) {
     case 'LOAD':
-      return { ...state, ...action.payload }
-    case 'SET_ROLE':
-      return { ...state, role: action.role }
-    case 'CREATE_GATE_ENTRY': {
-      const jobCard = {
-        id: uid(),
-        status: STATUS.PENDING_ENTRY_APPROVAL,
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
-        audit: [
-          { at: nowIso(), byRole: 'Security', action: 'GATE_ENTRY_CREATED', note: 'Gate entry submitted' },
-        ],
-        gateEntry: {
-          inTime: action.payload.inTime || nowIso(),
-          vehicleType: action.payload.vehicleType,
-          vehicleNumber: action.payload.vehicleNumber.trim(),
-          vendorName: action.payload.vendorName.trim(),
-          driverName: action.payload.driverName.trim(),
-          driverPhone: action.payload.driverPhone.trim(),
-          requesterName: action.payload.requesterName.trim(),
-          location: action.payload.location.trim(),
-          entryPhoto: action.payload.entryPhoto, // base64 + meta
-        },
-        trips: [],
-        preClose: null,
-        billing: null,
-        closure: null,
-        approvals: {
-          entryApprovedAt: null,
-          entryApprovedBy: null,
-          entryRejectedAt: null,
-          entryRejectedBy: null,
-          entryRejectReason: null,
-          preCloseApprovedAt: null,
-          preCloseApprovedBy: null,
-          preCloseRejectedAt: null,
-          preCloseRejectedBy: null,
-          preCloseRejectReason: null,
-          fullClosedAt: null,
-          fullClosedBy: null,
-        },
-      }
-      return {
-        ...state,
-        jobCards: [jobCard, ...state.jobCards],
-      }
-    }
-    case 'APPROVE_ENTRY': {
-      const jobCards = state.jobCards.map((jc) => {
-        if (jc.id !== action.id) return jc
-        return {
-          ...jc,
-          status: STATUS.APPROVED_FOR_WORK,
-          updatedAt: nowIso(),
-          audit: [...jc.audit, { at: nowIso(), byRole: 'Devaraj', action: 'ENTRY_APPROVED', note: 'Gate entry approved' }],
-          approvals: {
-            ...jc.approvals,
-            entryApprovedAt: nowIso(),
-            entryApprovedBy: 'Devaraj',
-            entryRejectedAt: null,
-            entryRejectedBy: null,
-            entryRejectReason: null,
-          },
-        }
-      })
-      return { ...state, jobCards }
-    }
-    case 'REJECT_ENTRY': {
-      const jobCards = state.jobCards.map((jc) => {
-        if (jc.id !== action.id) return jc
-        return {
-          ...jc,
-          status: STATUS.PENDING_ENTRY_APPROVAL, // remains pending; could be rejected state but spec says approve/reject; keep pending with audit
-          updatedAt: nowIso(),
-          audit: [...jc.audit, { at: nowIso(), byRole: 'Devaraj', action: 'ENTRY_REJECTED', note: action.reason || 'Rejected' }],
-          approvals: {
-            ...jc.approvals,
-            entryRejectedAt: nowIso(),
-            entryRejectedBy: 'Devaraj',
-            entryRejectReason: action.reason || 'Rejected',
-          },
-        }
-      })
-      return { ...state, jobCards }
-    }
-    case 'ADD_TRIP': {
-      const jobCards = state.jobCards.map((jc) => {
-        if (jc.id !== action.id) return jc
-        const tripNumber = (jc.trips?.length || 0) + 1
-        const trip = {
-          id: 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
-          tripNumber,
-          materialType: action.payload.materialType,
-          movement: action.payload.movement,
-          timestamp: nowIso(),
-          photo: action.payload.photo,
-        }
-        return {
-          ...jc,
-          updatedAt: nowIso(),
-          trips: [...(jc.trips || []), trip],
-          audit: [...jc.audit, { at: nowIso(), byRole: 'Security', action: 'TRIP_ADDED', note: `Trip #${tripNumber} logged` }],
-        }
-      })
-      return { ...state, jobCards }
-    }
-    case 'PRE_CLOSE': {
-      const jobCards = state.jobCards.map((jc) => {
-        if (jc.id !== action.id) return jc
-        return {
-          ...jc,
-          status: STATUS.PENDING_PRECLOSE_APPROVAL,
-          updatedAt: nowIso(),
-          preClose: {
-            outTime: action.payload.outTime || nowIso(),
-            exitPhoto: action.payload.exitPhoto,
-            workDetails: action.payload.workDetails || '',
-            submittedAt: nowIso(),
-          },
-          audit: [...jc.audit, { at: nowIso(), byRole: 'Security', action: 'PRE_CLOSE_SUBMITTED', note: 'Pre-close submitted' }],
-        }
-      })
-      return { ...state, jobCards }
-    }
-    case 'APPROVE_PRE_CLOSE': {
-      const jobCards = state.jobCards.map((jc) => {
-        if (jc.id !== action.id) return jc
-        return {
-          ...jc,
-          status: STATUS.PENDING_BILLING,
-          updatedAt: nowIso(),
-          audit: [...jc.audit, { at: nowIso(), byRole: 'Devaraj', action: 'PRE_CLOSE_APPROVED', note: 'Pre-close approved' }],
-          approvals: {
-            ...jc.approvals,
-            preCloseApprovedAt: nowIso(),
-            preCloseApprovedBy: 'Devaraj',
-            preCloseRejectedAt: null,
-            preCloseRejectedBy: null,
-            preCloseRejectReason: null,
-          },
-        }
-      })
-      return { ...state, jobCards }
-    }
-    case 'REJECT_PRE_CLOSE': {
-      const jobCards = state.jobCards.map((jc) => {
-        if (jc.id !== action.id) return jc
-        return {
-          ...jc,
-          status: STATUS.APPROVED_FOR_WORK, // back to work phase
-          updatedAt: nowIso(),
-          audit: [...jc.audit, { at: nowIso(), byRole: 'Devaraj', action: 'PRE_CLOSE_REJECTED', note: action.reason || 'Pre-close rejected' }],
-          approvals: {
-            ...jc.approvals,
-            preCloseRejectedAt: nowIso(),
-            preCloseRejectedBy: 'Devaraj',
-            preCloseRejectReason: action.reason || 'Rejected',
-          },
-        }
-      })
-      return { ...state, jobCards }
-    }
-    case 'SUBMIT_BILLING': {
-      const jobCards = state.jobCards.map((jc) => {
-        if (jc.id !== action.id) return jc
-        return {
-          ...jc,
-          status: STATUS.PENDING_FULL_CLOSE_APPROVAL,
-          updatedAt: nowIso(),
-          billing: {
-            billReceived: action.payload.billReceived,
-            invoiceNumber: action.payload.invoiceNumber.trim(),
-            billAmount: action.payload.billAmount,
-            inwardChecked: action.payload.inwardChecked,
-            inwardEntry: action.payload.inwardEntry.trim(),
-            xeroxPhoto: action.payload.xeroxPhoto,
-            submittedAt: nowIso(),
-            submittedBy: 'Sharath',
-          },
-          audit: [...jc.audit, { at: nowIso(), byRole: 'Sharath', action: 'BILL_SUBMITTED', note: 'Bill and inward details submitted' }],
-        }
-      })
-      return { ...state, jobCards }
-    }
-    case 'APPROVE_FULL_CLOSE': {
-      const jobCards = state.jobCards.map((jc) => {
-        if (jc.id !== action.id) return jc
-        return {
-          ...jc,
-          status: STATUS.FULLY_CLOSED,
-          updatedAt: nowIso(),
-          closure: {
-            closedAt: nowIso(),
-            closedBy: 'Devaraj',
-          },
-          audit: [...jc.audit, { at: nowIso(), byRole: 'Devaraj', action: 'FULLY_CLOSED', note: 'Job card fully closed' }],
-        }
-      })
-      return { ...state, jobCards }
-    }
+      return { ...state, jobCards: action.jobCards || [] }
     default:
       return state
   }
@@ -252,38 +51,194 @@ function reducer(state, action) {
 
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
+  const { user, role } = useAuth()
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        dispatch({ type: 'LOAD', payload: parsed })
-      }
-    } catch (e) {
-      // ignore
+    if (!user) {
+      dispatch({ type: 'LOAD', jobCards: [] })
+      return
     }
-  }, [])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-    } catch (e) {
-      // ignore
+    fetchJobCards()
+
+    const channel = supabase
+      .channel('job_cards_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'job_cards',
+        },
+        () => {
+          fetchJobCards()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
-  }, [state])
+  }, [user])
+
+  async function fetchJobCards() {
+    try {
+      const { data, error } = await supabase
+        .from('job_cards')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      const jcs = (data || []).map((row) => row.data).filter(Boolean)
+      dispatch({ type: 'LOAD', jobCards: jcs })
+    } catch (e) {
+      console.error('Error fetching job cards', e)
+    }
+  }
+
+  async function saveJobCard(jobCard) {
+    try {
+      const { error } = await supabase.from('job_cards').upsert({
+        id: jobCard.id,
+        status: jobCard.status,
+        data: jobCard,
+        created_by: jobCard.created_by || user?.id,
+        updated_at: new Date().toISOString(),
+      })
+      if (error) throw error
+    } catch (e) {
+      console.error('Error saving job card', e)
+    }
+  }
 
   const value = useMemo(
     () => ({
       state,
-      dispatch,
+      dispatch: async (action) => {
+        if (action.type === 'CREATE_GATE_ENTRY') {
+          const jobCard = {
+            id: uid(),
+            status: STATUS.PENDING_ENTRY_APPROVAL,
+            createdAt: nowIso(),
+            updatedAt: nowIso(),
+            created_by: user?.id,
+            audit: [{ at: nowIso(), byRole: action.byRole || role || 'Security', action: 'GATE_ENTRY_CREATED', note: 'Gate entry submitted' }],
+            gateEntry: action.payload,
+            trips: [],
+            preClose: null,
+            billing: null,
+            closure: null,
+            approvals: {
+              entryApprovedAt: null,
+              entryApprovedBy: null,
+              entryRejectedAt: null,
+              entryRejectedBy: null,
+              entryRejectReason: null,
+              preCloseApprovedAt: null,
+              preCloseApprovedBy: null,
+              preCloseRejectedAt: null,
+              preCloseRejectedBy: null,
+              preCloseRejectReason: null,
+              fullClosedAt: null,
+              fullClosedBy: null,
+            },
+          }
+          await saveJobCard(jobCard)
+          await fetchJobCards()
+          return
+        }
+        // ... rest of your existing actions can remain the same
+        if (action.type === 'APPROVE_ENTRY') {
+          const jc = state.jobCards.find((j) => j.id === action.id)
+          if (!jc) return
+          const updated = {
+            ...jc,
+            status: STATUS.APPROVED_FOR_WORK,
+            updatedAt: nowIso(),
+            audit: [...(jc.audit || []), { at: nowIso(), byRole: action.byRole || role || 'Devaraj', action: 'ENTRY_APPROVED', note: 'Gate entry approved' }],
+            approvals: { ...(jc.approvals || {}), entryApprovedAt: nowIso(), entryApprovedBy: action.byRole || role || 'Devaraj', entryRejectedAt: null, entryRejectedBy: null, entryRejectReason: null },
+          }
+          await saveJobCard(updated)
+          await fetchJobCards()
+          return
+        }
+        if (action.type === 'REJECT_ENTRY') {
+          const jc = state.jobCards.find((j) => j.id === action.id)
+          if (!jc) return
+          const updated = {
+            ...jc,
+            updatedAt: nowIso(),
+            audit: [...(jc.audit || []), { at: nowIso(), byRole: action.byRole || role || 'Devaraj', action: 'ENTRY_REJECTED', note: action.reason || 'Rejected' }],
+            approvals: { ...(jc.approvals || {}), entryRejectedAt: nowIso(), entryRejectedBy: action.byRole || role || 'Devaraj', entryRejectReason: action.reason || 'Rejected' },
+          }
+          await saveJobCard(updated)
+          await fetchJobCards()
+          return
+        }
+        if (action.type === 'ADD_TRIP') {
+          const jc = state.jobCards.find((j) => j.id === action.id)
+          if (!jc) return
+          const tripNumber = (jc.trips || []).length + 1
+          const trip = { id: 't_' + Date.now().toString(36), tripNumber, materialType: action.payload.materialType, movement: action.payload.movement, timestamp: nowIso(), photo: action.payload.photo }
+          const updated = { ...jc, updatedAt: nowIso(), trips: [...(jc.trips || []), trip], audit: [...(jc.audit || []), { at: nowIso(), byRole: action.byRole || role || 'Security', action: 'TRIP_ADDED', note: `Trip #${tripNumber} logged` }] }
+          await saveJobCard(updated)
+          await fetchJobCards()
+          return
+        }
+        if (action.type === 'PRE_CLOSE') {
+          const jc = state.jobCards.find((j) => j.id === action.id)
+          if (!jc) return
+          const updated = {
+            ...jc,
+            status: STATUS.PENDING_PRECLOSE_APPROVAL,
+            updatedAt: nowIso(),
+            preClose: { outTime: action.payload.outTime || nowIso(), exitPhoto: action.payload.exitPhoto, workDetails: action.payload.workDetails || '', submittedAt: nowIso() },
+            audit: [...(jc.audit || []), { at: nowIso(), byRole: action.byRole || role || 'Security', action: 'PRE_CLOSE_SUBMITTED', note: 'Pre-close submitted' }],
+          }
+          await saveJobCard(updated)
+          await fetchJobCards()
+          return
+        }
+        if (action.type === 'APPROVE_PRE_CLOSE') {
+          const jc = state.jobCards.find((j) => j.id === action.id)
+          if (!jc) return
+          const updated = { ...jc, status: STATUS.PENDING_BILLING, updatedAt: nowIso(), audit: [...(jc.audit || []), { at: nowIso(), byRole: action.byRole || role || 'Devaraj', action: 'PRE_CLOSE_APPROVED', note: 'Pre-close approved' }], approvals: { ...(jc.approvals || {}), preCloseApprovedAt: nowIso(), preCloseApprovedBy: action.byRole || role || 'Devaraj', preCloseRejectedAt: null, preCloseRejectedBy: null, preCloseRejectReason: null } }
+          await saveJobCard(updated)
+          await fetchJobCards()
+          return
+        }
+        if (action.type === 'REJECT_PRE_CLOSE') {
+          const jc = state.jobCards.find((j) => j.id === action.id)
+          if (!jc) return
+          const updated = { ...jc, status: STATUS.APPROVED_FOR_WORK, updatedAt: nowIso(), audit: [...(jc.audit || []), { at: nowIso(), byRole: action.byRole || role || 'Devaraj', action: 'PRE_CLOSE_REJECTED', note: action.reason || 'Rejected' }], approvals: { ...(jc.approvals || {}), preCloseRejectedAt: nowIso(), preCloseRejectedBy: action.byRole || role || 'Devaraj', preCloseRejectReason: action.reason || 'Rejected' } }
+          await saveJobCard(updated)
+          await fetchJobCards()
+          return
+        }
+        if (action.type === 'SUBMIT_BILLING') {
+          const jc = state.jobCards.find((j) => j.id === action.id)
+          if (!jc) return
+          const updated = { ...jc, status: STATUS.PENDING_FULL_CLOSE_APPROVAL, updatedAt: nowIso(), billing: { billReceived: action.payload.billReceived, invoiceNumber: action.payload.invoiceNumber, billAmount: action.payload.billAmount, inwardChecked: action.payload.inwardChecked, inwardEntry: action.payload.inwardEntry, xeroxPhoto: action.payload.xeroxPhoto, submittedAt: nowIso(), submittedBy: action.byRole || role || 'Sharath' }, audit: [...(jc.audit || []), { at: nowIso(), byRole: action.byRole || role || 'Sharath', action: 'BILL_SUBMITTED', note: 'Bill submitted' }] }
+          await saveJobCard(updated)
+          await fetchJobCards()
+          return
+        }
+        if (action.type === 'APPROVE_FULL_CLOSE') {
+          const jc = state.jobCards.find((j) => j.id === action.id)
+          if (!jc) return
+          const updated = { ...jc, status: STATUS.FULLY_CLOSED, updatedAt: nowIso(), closure: { closedAt: nowIso(), closedBy: action.byRole || role || 'Devaraj' }, audit: [...(jc.audit || []), { at: nowIso(), byRole: action.byRole || role || 'Devaraj', action: 'FULLY_CLOSED', note: 'Job card fully closed' }] }
+          await saveJobCard(updated)
+          await fetchJobCards()
+          return
+        }
+      },
       roles: ROLES,
       vehicleTypes: VEHICLE_TYPES,
       materials: MATERIALS,
       status: STATUS,
       formatTimestamp,
+      refresh: fetchJobCards,
     }),
-    [state],
+    [state, user, role],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
