@@ -118,25 +118,35 @@ export default function App() {
   function canCreateGate() {
     if (role !== 'Security' && role !== 'Admin') return false
     const v = gateForm
-    if (!v.vehicleNumber.trim() || !v.vendorName.trim() || !v.driverName.trim() || !v.requesterName.trim() || !v.location.trim()) return false
+    if (!v.vehicleType) return false
+    if (!v.vehicleNumber.trim()) return false
+    if (!v.vendorName.trim()) return false
+    if (!v.driverName.trim()) return false
+    if (!v.driverPhone.trim()) return false
     if (!validatePhone(v.driverPhone.trim())) return false
+    if (!v.requesterName.trim()) return false
+    if (!v.location.trim()) return false
     if (!entryPhoto) return false
     return true
   }
 
   function submitGateEntry() {
-    if (!canCreateGate()) return
+    if (!canCreateGate()) {
+      alert('Please fill all mandatory fields: Vehicle Type, Vehicle Number, Vendor Name, Driver Name, Driver Phone (10 digits), Requester Name, Location and capture the Gate Entry Photo.')
+      return
+    }
     dispatch({
       type: 'CREATE_GATE_ENTRY',
+      byRole: role,
       payload: {
         inTime: inTimeNow,
         vehicleType: gateForm.vehicleType,
-        vehicleNumber: gateForm.vehicleNumber,
-        vendorName: gateForm.vendorName,
-        driverName: gateForm.driverName,
-        driverPhone: gateForm.driverPhone,
-        requesterName: gateForm.requesterName,
-        location: gateForm.location,
+        vehicleNumber: gateForm.vehicleNumber.trim().toUpperCase(),
+        vendorName: gateForm.vendorName.trim(),
+        driverName: gateForm.driverName.trim(),
+        driverPhone: gateForm.driverPhone.trim(),
+        requesterName: gateForm.requesterName.trim(),
+        location: gateForm.location.trim(),
         entryPhoto,
       },
     })
@@ -148,25 +158,30 @@ export default function App() {
 
   function approveEntry(id) {
     if (role !== 'Devaraj' && role !== 'Admin') return
-    dispatch({ type: 'APPROVE_ENTRY', id })
+    dispatch({ type: 'APPROVE_ENTRY', id, byRole: role })
   }
 
   function rejectEntry(id) {
     if (role !== 'Devaraj' && role !== 'Admin') return
     const reason = window.prompt('Enter rejection reason (optional):') || 'Rejected'
-    dispatch({ type: 'REJECT_ENTRY', id, reason })
+    dispatch({ type: 'REJECT_ENTRY', id, reason, byRole: role })
   }
 
   function canAddTrip(jc) {
     if (role !== 'Security' && role !== 'Admin') return false
     if (jc.status !== 'APPROVED_FOR_WORK') return false
+    if (!tripForm.materialType) return false
+    if (!tripForm.movement) return false
     if (!tripPhoto) return false
     return true
   }
 
   function addTrip(jc) {
-    if (!canAddTrip(jc)) return
-    dispatch({ type: 'ADD_TRIP', id: jc.id, payload: { materialType: tripForm.materialType, movement: tripForm.movement, photo: tripPhoto } })
+    if (!canAddTrip(jc)) {
+      alert('Please select Material Type, Movement and capture the mandatory Trip Photo before adding a trip.')
+      return
+    }
+    dispatch({ type: 'ADD_TRIP', id: jc.id, byRole: role, payload: { materialType: tripForm.materialType, movement: tripForm.movement, photo: tripPhoto } })
     setTripPhoto(null)
   }
 
@@ -176,41 +191,56 @@ export default function App() {
     const vt = jc.gateEntry?.vehicleType
     if (vt === 'Tractor') {
       if ((jc.trips || []).length < 1) return false
+    } else {
+      if (!preCloseForm.workDetails?.trim()) return false
     }
     if (!exitPhoto) return false
     return true
   }
 
   function submitPreClose(jc) {
-    if (!canPreClose(jc)) return
+    if (!canPreClose(jc)) {
+      const vt = jc.gateEntry?.vehicleType
+      if (vt === 'Tractor') {
+        alert('Please add at least 1 trip and capture the mandatory Exit Photo before Pre-Close.')
+      } else {
+        alert('Please enter Work Details/Description and capture the mandatory Exit/Work Photo before Pre-Close.')
+      }
+      return
+    }
     dispatch({
       type: 'PRE_CLOSE',
       id: jc.id,
+      byRole: role,
       payload: {
         outTime: preCloseForm.outTime || new Date().toISOString(),
         exitPhoto,
-        workDetails: preCloseForm.workDetails,
+        workDetails: preCloseForm.workDetails?.trim() || '',
       },
     })
     setExitPhoto(null)
+    setPreCloseForm({ workDetails: '', outTime: new Date().toISOString() })
   }
 
   function approvePreClose(id) {
     if (role !== 'Devaraj' && role !== 'Admin') return
-    dispatch({ type: 'APPROVE_PRE_CLOSE', id })
+    dispatch({ type: 'APPROVE_PRE_CLOSE', id, byRole: role })
   }
 
   function rejectPreClose(id) {
     if (role !== 'Devaraj' && role !== 'Admin') return
     const reason = window.prompt('Enter rejection reason (optional):') || 'Pre-close rejected'
-    dispatch({ type: 'REJECT_PRE_CLOSE', id, reason })
+    dispatch({ type: 'REJECT_PRE_CLOSE', id, reason, byRole: role })
   }
 
   function canSubmitBilling(jc) {
     if (role !== 'Sharath' && role !== 'Admin') return false
     if (jc.status !== 'PENDING_BILLING') return false
+    if (!billForm.billReceived) return false
     if (!billForm.invoiceNumber.trim()) return false
-    if (billForm.billAmount === '' || billForm.billAmount === null) return false
+    if (billForm.billAmount === '' || billForm.billAmount === null || billForm.billAmount === undefined) return false
+    const amt = Number(billForm.billAmount)
+    if (isNaN(amt) || amt <= 0) return false
     if (!billForm.inwardChecked) return false
     if (!billForm.inwardEntry.trim()) return false
     if (!xeroxPhoto) return false
@@ -218,25 +248,30 @@ export default function App() {
   }
 
   function submitBilling(jc) {
-    if (!canSubmitBilling(jc)) return
+    if (!canSubmitBilling(jc)) {
+      alert('All billing fields are mandatory: Bill/Invoice Received, Invoice Number, Bill Amount (> 0), Cross-Checked with Inward Book (checkbox), Inward Book Entry/Page No., and Xerox/Invoice Copy photo.')
+      return
+    }
     dispatch({
       type: 'SUBMIT_BILLING',
       id: jc.id,
+      byRole: role,
       payload: {
         billReceived: billForm.billReceived,
-        invoiceNumber: billForm.invoiceNumber,
+        invoiceNumber: billForm.invoiceNumber.trim(),
         billAmount: billForm.billAmount,
         inwardChecked: billForm.inwardChecked,
-        inwardEntry: billForm.inwardEntry,
+        inwardEntry: billForm.inwardEntry.trim(),
         xeroxPhoto,
       },
     })
     setXeroxPhoto(null)
+    setBillForm({ billReceived: 'Yes', invoiceNumber: '', billAmount: '', inwardChecked: false, inwardEntry: '' })
   }
 
   function approveFullClose(id) {
     if (role !== 'Devaraj' && role !== 'Admin') return
-    dispatch({ type: 'APPROVE_FULL_CLOSE', id })
+    dispatch({ type: 'APPROVE_FULL_CLOSE', id, byRole: role })
   }
 
   const queue = useMemo(() => {
@@ -646,7 +681,7 @@ export default function App() {
                     ) : (
                       <div className="mt-4 flex flex-col gap-4">
                         <Field label="Work Details / Description">
-                          <Textarea rows={4} value={preCloseForm.workDetails} onChange={(e) => setPreCloseForm({ ...preCloseForm, workDetails: e.target.value })} placeholder="Describe work done (JCB/Crane)" />
+                          <Textarea rows={4} value={preCloseForm.workDetails} onChange={(e) => setPreCloseForm({ ...preCloseForm, workDetails: e.target.value })} placeholder={`Describe work done (${activeJC.gateEntry?.vehicleType || 'JCB/Crane'})`} />
                         </Field>
                         <Field label="Exit Time">
                           <Input value={formatTimestamp(preCloseForm.outTime)} readOnly />
