@@ -93,7 +93,26 @@ export default function CameraModal({ open, onClose, onCapture, title = 'Capture
     if (!file) return
     const reader = new FileReader()
     reader.onload = () => {
-      setCaptured({ dataUrl: reader.result, timestamp: new Date().toISOString() })
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const w = img.width
+        const h = img.height
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, w, h)
+        const pad = 16
+        const wm = formatWatermark()
+        ctx.fillStyle = 'rgba(8, 17, 31, 0.6)'
+        ctx.fillRect(0, h - 40, w, 40)
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 18px Inter, system-ui'
+        ctx.fillText(wm, pad, h - 14)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+        setCaptured({ dataUrl, timestamp: new Date().toISOString() })
+      }
+      img.src = reader.result
     }
     reader.readAsDataURL(file)
   }
@@ -109,7 +128,7 @@ export default function CameraModal({ open, onClose, onCapture, title = 'Capture
             <Camera className="h-5 w-5 text-safety-400" />
             <div>
               <p className="text-sm font-semibold">{title}</p>
-              <p className="text-xs text-white/60">Live timestamp watermark will be applied</p>
+              <p className="text-xs text-white/60">Timestamp watermark will be applied to camera or gallery photo</p>
             </div>
           </div>
           <button onClick={onClose} className="rounded-full p-2 text-white/70 transition hover:bg-white/10 hover:text-white">
@@ -148,8 +167,8 @@ export default function CameraModal({ open, onClose, onCapture, title = 'Capture
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="cursor-pointer rounded-full px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/10">
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFileChange} />
-              Use file (fallback)
+              <input type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+              Upload from Gallery
             </label>
             {!captured ? (
               <button

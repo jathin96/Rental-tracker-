@@ -222,6 +222,40 @@ export function StoreProvider({ children }) {
           await fetchJobCards()
           return
         }
+        if (action.type === 'UPDATE_BILLING') {
+          const jc = state.jobCards.find((j) => j.id === action.id)
+          if (!jc) return
+          const oldBilling = jc.billing || {}
+          const changes = []
+          if (oldBilling.billReceived !== action.payload.billReceived) changes.push({ field: 'Bill Received', from: oldBilling.billReceived, to: action.payload.billReceived })
+          if (oldBilling.invoiceNumber !== action.payload.invoiceNumber) changes.push({ field: 'Invoice Number', from: oldBilling.invoiceNumber, to: action.payload.invoiceNumber })
+          if (String(oldBilling.billAmount) !== String(action.payload.billAmount)) changes.push({ field: 'Bill Amount', from: oldBilling.billAmount, to: action.payload.billAmount })
+          if (oldBilling.inwardChecked !== action.payload.inwardChecked) changes.push({ field: 'Inward Checked', from: oldBilling.inwardChecked ? 'Yes' : 'No', to: action.payload.inwardChecked ? 'Yes' : 'No' })
+          if (oldBilling.inwardEntry !== action.payload.inwardEntry) changes.push({ field: 'Inward Entry', from: oldBilling.inwardEntry, to: action.payload.inwardEntry })
+          const editEntry = {
+            editedBy: action.byRole || role || 'Devaraj',
+            editedAt: nowIso(),
+            changes,
+          }
+          const updated = {
+            ...jc,
+            updatedAt: nowIso(),
+            billing: {
+              ...oldBilling,
+              billReceived: action.payload.billReceived,
+              invoiceNumber: action.payload.invoiceNumber,
+              billAmount: action.payload.billAmount,
+              inwardChecked: action.payload.inwardChecked,
+              inwardEntry: action.payload.inwardEntry,
+              xeroxPhoto: action.payload.xeroxPhoto || oldBilling.xeroxPhoto,
+              billEdits: [...(oldBilling.billEdits || []), editEntry],
+            },
+            audit: [...(jc.audit || []), { at: nowIso(), byRole: action.byRole || role || 'Devaraj', action: 'BILL_EDITED', note: changes.length ? changes.map(c => `${c.field}: ${c.from} -> ${c.to}`).join(', ') : 'Bill details updated' }],
+          }
+          await saveJobCard(updated)
+          await fetchJobCards()
+          return
+        }
         if (action.type === 'APPROVE_FULL_CLOSE') {
           const jc = state.jobCards.find((j) => j.id === action.id)
           if (!jc) return

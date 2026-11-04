@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from './store/StoreProvider.jsx'
 import CameraModal from './components/CameraModal.jsx'
 import ProgressStepper from './components/ProgressStepper.jsx'
@@ -104,8 +104,23 @@ export default function App() {
   // Billing
   const [billForm, setBillForm] = useState({ billReceived: 'Yes', invoiceNumber: '', billAmount: '', inwardChecked: false, inwardEntry: '' })
   const [xeroxPhoto, setXeroxPhoto] = useState(null)
+  const [billEditForm, setBillEditForm] = useState({ billReceived: 'Yes', invoiceNumber: '', billAmount: '', inwardChecked: false, inwardEntry: '' })
+  const [billEditPhoto, setBillEditPhoto] = useState(null)
 
   const activeJC = useMemo(() => state.jobCards.find((j) => j.id === activeId) || null, [state.jobCards, activeId])
+
+  useEffect(() => {
+    if (activeJC?.billing && (role === 'Devaraj' || role === 'Admin')) {
+      setBillEditForm({
+        billReceived: activeJC.billing.billReceived || 'Yes',
+        invoiceNumber: activeJC.billing.invoiceNumber || '',
+        billAmount: activeJC.billing.billAmount || '',
+        inwardChecked: !!activeJC.billing.inwardChecked,
+        inwardEntry: activeJC.billing.inwardEntry || '',
+      })
+      setBillEditPhoto(null)
+    }
+  }, [activeJC?.id, activeJC?.billing, role])
 
   function openCamera(title, onCapture) {
     setCamera({ open: true, title, onCapture })
@@ -116,7 +131,7 @@ export default function App() {
   }
 
   function canCreateGate() {
-    if (role !== 'Security' && role !== 'Admin') return false
+    if (role !== 'Security' && role !== 'Admin' && role !== 'Sharath') return false
     const v = gateForm
     if (!v.vehicleType) return false
     if (!v.vehicleNumber.trim()) return false
@@ -168,7 +183,7 @@ export default function App() {
   }
 
   function canAddTrip(jc) {
-    if (role !== 'Security' && role !== 'Admin') return false
+    if (role !== 'Security' && role !== 'Admin' && role !== 'Sharath') return false
     if (jc.status !== 'APPROVED_FOR_WORK') return false
     if (!tripForm.materialType) return false
     if (!tripForm.movement) return false
@@ -274,6 +289,47 @@ export default function App() {
     dispatch({ type: 'APPROVE_FULL_CLOSE', id, byRole: role })
   }
 
+  function updateBillAsDevaraj(jc) {
+    if (role !== 'Devaraj' && role !== 'Admin') return
+    if (!jc.billing) return
+    if (!billEditForm.invoiceNumber.trim()) {
+      alert('Invoice Number is mandatory')
+      return
+    }
+    if (billEditForm.billAmount === '' || billEditForm.billAmount === null) {
+      alert('Bill Amount is mandatory')
+      return
+    }
+    const amt = Number(billEditForm.billAmount)
+    if (isNaN(amt) || amt <= 0) {
+      alert('Bill Amount must be greater than 0')
+      return
+    }
+    if (!billEditForm.inwardChecked) {
+      alert('Please check Cross-Checked with Inward Book')
+      return
+    }
+    if (!billEditForm.inwardEntry.trim()) {
+      alert('Inward Book Entry/Page No. is mandatory')
+      return
+    }
+    dispatch({
+      type: 'UPDATE_BILLING',
+      id: jc.id,
+      byRole: role,
+      payload: {
+        billReceived: billEditForm.billReceived,
+        invoiceNumber: billEditForm.invoiceNumber.trim(),
+        billAmount: billEditForm.billAmount,
+        inwardChecked: billEditForm.inwardChecked,
+        inwardEntry: billEditForm.inwardEntry.trim(),
+        xeroxPhoto: billEditPhoto || jc.billing.xeroxPhoto,
+      },
+    })
+    setBillEditPhoto(null)
+    alert('Bill updated successfully')
+  }
+
   const queue = useMemo(() => {
     if (role === 'Admin') {
       return state.jobCards
@@ -314,7 +370,7 @@ export default function App() {
                 <p className="text-xs text-slate-500 leading-none mt-0.5">{role}</p>
               </div>
             </div>
-            {(role === 'Security' || role === 'Admin') && (
+            {(role === 'Security' || role === 'Admin' || role === 'Sharath') && (
               <button
                 onClick={() => setView('create')}
                 className="flex items-center gap-2 rounded-full bg-safety-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-safety-400"
@@ -404,7 +460,7 @@ export default function App() {
           </div>
         )}
 
-        {view === 'create' && role === 'Security' && (
+        {view === 'create' && (role === 'Security' || role === 'Admin' || role === 'Sharath') && (
           <div className="flex flex-col gap-6">
             <div>
               <h1 className="font-display text-xl font-semibold text-slate-900">New Gate Entry</h1>
@@ -503,7 +559,7 @@ export default function App() {
                   {activeJC.gateEntry?.vehicleType} • {activeJC.gateEntry?.vendorName} • {activeJC.gateEntry?.location}
                 </p>
               </div>
-              <button onClick={() => setView('list')} className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100">
+              <button onClick={() => setView('list')} className="rounded-full px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
                 Back to list
               </button>
             </div>
@@ -580,7 +636,7 @@ export default function App() {
                   </div>
                 )}
 
-                {activeJC.status === 'APPROVED_FOR_WORK' && (role === 'Security' || role === 'Admin') && (
+                {activeJC.status === 'APPROVED_FOR_WORK' && (role === 'Security' || role === 'Admin' || role === 'Sharath') && (
                   <div className="rounded-3xl border border-white/80 bg-white/80 p-6 shadow-card">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -805,8 +861,59 @@ export default function App() {
                       <UserCog class="h-5 w-5 text-fuchsia-700" />
                       <p class="font-medium text-slate-900">Stage 6: Full Closure Approval</p>
                     </div>
-                    <p class="mt-1 text-sm text-slate-600">Review bill, inward book, xerox copy and trip photos before final closure.</p>
+                    <p class="mt-1 text-sm text-slate-600">Review bill, inward book, xerox copy and trip photos before final closure. You can edit bill details below.</p>
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                      <Field label="Bill / Invoice Received">
+                        <Select value={billEditForm.billReceived} onChange={(e) => setBillEditForm({ ...billEditForm, billReceived: e.target.value })}>
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                        </Select>
+                      </Field>
+                      <Field label="Invoice Number">
+                        <Input value={billEditForm.invoiceNumber} onChange={(e) => setBillEditForm({ ...billEditForm, invoiceNumber: e.target.value })} placeholder="INV-XXXX" />
+                      </Field>
+                      <Field label="Bill Amount (₹)">
+                        <Input type="number" value={billEditForm.billAmount} onChange={(e) => setBillEditForm({ ...billEditForm, billAmount: e.target.value })} placeholder="0.00" />
+                      </Field>
+                    </div>
+                    <div class="mt-4 flex flex-col gap-3">
+                      <label class="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                        <input type="checkbox" checked={billEditForm.inwardChecked} onChange={(e) => setBillEditForm({ ...billEditForm, inwardChecked: e.target.checked })} class="mt-1 h-4 w-4 rounded border-slate-300 text-safety-500 focus:ring-safety-400" />
+                        <div>
+                          <p class="text-sm font-medium text-slate-900">Cross-Checked (C/S) with Inward Book</p>
+                          <p class="text-xs text-slate-500">Mandatory</p>
+                        </div>
+                      </label>
+                      <Field label="Inward Book Entry/Page No.">
+                        <Input value={billEditForm.inwardEntry} onChange={(e) => setBillEditForm({ ...billEditForm, inwardEntry: e.target.value })} placeholder="IB-XX / Page 12" />
+                      </Field>
+                    </div>
+                    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-300 bg-white p-4">
+                      <div class="flex items-center gap-2">
+                        <Receipt class="h-5 w-5 text-safety-500" />
+                        <div>
+                          <p class="text-sm font-medium text-slate-900">Update Xerox / Invoice Copy (optional)</p>
+                          <p class="text-xs text-slate-500">Upload from gallery or camera</p>
+                        </div>
+                      </div>
+                      <button onClick={() => openCamera('Update Xerox / Invoice Copy', (img) => setBillEditPhoto(img))} class="rounded-full bg-ink-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink-900">
+                        Upload Photo
+                      </button>
+                    </div>
+                    {billEditPhoto && (
+                      <div class="mt-3 overflow-hidden rounded-2xl">
+                        <img src={billEditPhoto.dataUrl} alt="Xerox" class="h-48 w-full object-cover" />
+                        <div class="flex items-center justify-between bg-slate-50 px-4 py-2 text-xs text-slate-500">
+                          <span>New Xerox/Invoice</span>
+                          <span>{formatTimestamp(billEditPhoto.timestamp)}</span>
+                        </div>
+                      </div>
+                    )}
                     <div class="mt-4 flex flex-wrap gap-2">
+                      <button onClick={() => updateBillAsDevaraj(activeJC)} class="flex items-center gap-2 rounded-full bg-amber-500 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400">
+                        <FileText class="h-4 w-4" />
+                        Update Bill Details
+                      </button>
                       <button onClick={() => approveFullClose(activeJC.id)} class="flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400">
                         <CheckCircle2 class="h-4 w-4" />
                         Approve Full Closure
@@ -917,6 +1024,27 @@ export default function App() {
                         <p class="text-sm font-medium text-slate-900">{formatTimestamp(activeJC.billing.submittedAt)}</p>
                       </div>
                     </div>
+                    {(activeJC.billing.billEdits || []).length > 0 && (
+                      <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                        <p class="text-sm font-medium text-slate-900">Bill Edit History</p>
+                        <div class="mt-2 flex flex-col gap-2">
+                          {(activeJC.billing.billEdits || []).slice().reverse().map((edit, idx) => (
+                            <div key={idx} class="text-sm text-slate-700">
+                              <p class="font-medium">Edited by {edit.editedBy} • {formatTimestamp(edit.editedAt)}</p>
+                              {(edit.changes || []).length > 0 ? (
+                                <ul class="mt-1 list-disc pl-5 text-xs text-slate-600">
+                                  {edit.changes.map((c, cidx) => (
+                                    <li key={cidx}>{c.field}: {c.from || '-'} → {c.to || '-'}</li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p class="text-xs text-slate-600">Bill details updated</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {activeJC.billing.xeroxPhoto && (
                       <div class="mt-4 overflow-hidden rounded-2xl">
                         <img src={activeJC.billing.xeroxPhoto.dataUrl} alt="Xerox" class="h-56 w-full object-cover" />
