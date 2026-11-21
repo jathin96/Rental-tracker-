@@ -1113,11 +1113,16 @@ export default function App() {
                       </div>
                     )}
                     {activeJC.billing.xeroxPhoto && (
-                      <div class="mt-4 overflow-hidden rounded-2xl">
-                        <img src={activeJC.billing.xeroxPhoto.dataUrl} alt="Xerox" class="h-56 w-full object-cover" />
+                      <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+                        <a href={activeJC.billing.xeroxPhoto.dataUrl} target="_blank" rel="noreferrer" className="block">
+                          <img src={activeJC.billing.xeroxPhoto.dataUrl} alt="Xerox" class="h-56 w-full object-cover cursor-pointer hover:opacity-95 transition" />
+                        </a>
                         <div class="flex items-center justify-between bg-slate-50 px-4 py-2 text-xs text-slate-500">
                           <span>Xerox / Invoice Copy</span>
-                          <span>{formatTimestamp(activeJC.billing.xeroxPhoto.timestamp)}</span>
+                          <div className="flex items-center gap-3">
+                            <span>{formatTimestamp(activeJC.billing.xeroxPhoto.timestamp)}</span>
+                            <a href={activeJC.billing.xeroxPhoto.dataUrl} target="_blank" rel="noreferrer" className="font-medium text-safety-600 hover:text-safety-700">Open</a>
+                          </div>
                         </div>
                       </div>
                     )}
