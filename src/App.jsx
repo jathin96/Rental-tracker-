@@ -330,21 +330,32 @@ export default function App() {
     alert('Bill updated successfully')
   }
 
+  const [historySearch, setHistorySearch] = useState({ vehicleNumber: '', date: '' })
+
   const queue = useMemo(() => {
-    if (role === 'Admin') {
-      return state.jobCards
-    }
-    if (role === 'Devaraj') {
-      return state.jobCards.filter((jc) => jc.status === 'PENDING_ENTRY_APPROVAL' || jc.status === 'PENDING_PRECLOSE_APPROVAL' || jc.status === 'PENDING_FULL_CLOSE_APPROVAL')
-    }
-    if (role === 'Sharath') {
-      return state.jobCards.filter((jc) => jc.status === 'PENDING_BILLING')
-    }
-    if (role === 'Security') {
-      return state.jobCards
-    }
     return state.jobCards
-  }, [role, state.jobCards])
+  }, [state.jobCards])
+
+  const historyCards = useMemo(() => {
+    return state.jobCards.filter((jc) => {
+      const vn = (historySearch.vehicleNumber || '').trim().toLowerCase()
+      const dt = historySearch.date
+      const matchVN = !vn || (jc.gateEntry?.vehicleNumber || '').toLowerCase().includes(vn)
+      let matchDate = true
+      if (dt) {
+        const inTime = jc.gateEntry?.inTime ? new Date(jc.gateEntry.inTime) : null
+        if (inTime) {
+          const y = inTime.getFullYear()
+          const m = String(inTime.getMonth() + 1).padStart(2, '0')
+          const d = String(inTime.getDate()).padStart(2, '0')
+          matchDate = `${y}-${m}-${d}` === dt
+        } else {
+          matchDate = false
+        }
+      }
+      return matchVN && matchDate
+    })
+  }, [state.jobCards, historySearch])
 
   return (
     <div className="min-h-screen">
@@ -379,8 +390,11 @@ export default function App() {
                 New Gate Entry
               </button>
             )}
-            <button onClick={() => setView('list')} className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+            <button onClick={() => setView('list')} className={`rounded-full px-4 py-2 text-sm font-medium transition hover:bg-slate-100 hover:text-slate-900 ${view === 'list' ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-600'}`}>
               Job Cards
+            </button>
+            <button onClick={() => setView('history')} className={`rounded-full px-4 py-2 text-sm font-medium transition hover:bg-slate-100 hover:text-slate-900 ${view === 'history' ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-600'}`}>
+              History
             </button>
             <button onClick={signOut} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
               <LogOut className="h-4 w-4" />
@@ -396,12 +410,7 @@ export default function App() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="font-display text-xl font-semibold text-slate-900">Job Cards</h1>
-                <p className="text-sm text-slate-500">
-                  {role === 'Devaraj' && 'Approvals queue'}
-                  {role === 'Sharath' && 'Ready for billing'}
-                  {role === 'Security' && 'All job cards'}
-                  {role === 'Admin' && 'All job cards (Full Access)'}
-                </p>
+                <p className="text-sm text-slate-500">All job cards visible to all users</p>
               </div>
               <div className="text-sm text-slate-500">{queue.length} card(s)</div>
             </div>
@@ -457,6 +466,64 @@ export default function App() {
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {view === 'history' && (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="font-display text-xl font-semibold text-slate-900">History</h1>
+                <p className="text-sm text-slate-500">Search all job card entries by vehicle number or date</p>
+              </div>
+              <div className="text-sm text-slate-500">{historyCards.length} record(s)</div>
+            </div>
+            <div className="grid gap-3 rounded-3xl border border-white/80 bg-white/80 p-4 shadow-card sm:grid-cols-3">
+              <Field label="Search by Vehicle Number">
+                <Input value={historySearch.vehicleNumber} onChange={(e) => setHistorySearch({ ...historySearch, vehicleNumber: e.target.value.toUpperCase() })} placeholder="e.g. KA-01-AB-1234" />
+              </Field>
+              <Field label="Search by Date">
+                <Input type="date" value={historySearch.date} onChange={(e) => setHistorySearch({ ...historySearch, date: e.target.value })} />
+              </Field>
+              <div className="flex items-end">
+                <button onClick={() => setHistorySearch({ vehicleNumber: '', date: '' })} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">Clear Filters</button>
+              </div>
+            </div>
+            {historyCards.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 rounded-3xl border border-dashed border-slate-300 bg-white/60 py-12 text-center">
+                <ClipboardList className="h-8 w-8 text-slate-400" />
+                <p className="font-medium text-slate-700">No records found</p>
+                <p className="text-sm text-slate-500">Try changing vehicle number or date filter</p>
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {historyCards.map((jc) => (
+                  <button
+                    key={jc.id}
+                    onClick={() => { setActiveId(jc.id); setView('detail') }}
+                    className="flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/80 p-5 text-left shadow-card transition hover:-translate-y-0.5 hover:shadow-float"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-ink-950/90 text-safety-400">
+                          <Truck className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">{jc.gateEntry?.vehicleNumber}</p>
+                          <p className="text-sm text-slate-500">{jc.gateEntry?.vehicleType} • {jc.gateEntry?.vendorName}</p>
+                        </div>
+                      </div>
+                      <StatusPill status={jc.status} />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                      <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" />IN: {formatTimestamp(jc.gateEntry?.inTime)}</span>
+                      <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" />{jc.gateEntry?.location}</span>
+                      <span className="flex items-center gap-1.5"><Hash className="h-4 w-4" />Trips: {(jc.trips || []).length}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
