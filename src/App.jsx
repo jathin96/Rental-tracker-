@@ -289,6 +289,27 @@ export default function App() {
     dispatch({ type: 'APPROVE_FULL_CLOSE', id, byRole: role })
   }
 
+  function openImage(dataUrl) {
+    if (!dataUrl) return
+    try {
+      const parts = dataUrl.split(',')
+      const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
+      const binary = atob(parts[1])
+      const len = binary.length
+      const bytes = new Uint8Array(len)
+      for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i)
+      const blob = new Blob([bytes], { type: mime })
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (e) {
+      const w = window.open()
+      if (w) {
+        w.document.write(`<img src="${dataUrl}" style="max-width:100%;height:auto;" />`)
+        w.document.close()
+      }
+    }
+  }
+
   function updateBillAsDevaraj(jc) {
     if (role !== 'Devaraj' && role !== 'Admin') return
     if (!jc.billing) return
@@ -1114,14 +1135,14 @@ export default function App() {
                     )}
                     {activeJC.billing.xeroxPhoto && (
                       <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-                        <a href={activeJC.billing.xeroxPhoto.dataUrl} target="_blank" rel="noreferrer" className="block">
+                        <button type="button" onClick={() => openImage(activeJC.billing.xeroxPhoto.dataUrl)} className="block w-full">
                           <img src={activeJC.billing.xeroxPhoto.dataUrl} alt="Xerox" class="h-56 w-full object-cover cursor-pointer hover:opacity-95 transition" />
-                        </a>
+                        </button>
                         <div class="flex items-center justify-between bg-slate-50 px-4 py-2 text-xs text-slate-500">
                           <span>Xerox / Invoice Copy</span>
                           <div className="flex items-center gap-3">
                             <span>{formatTimestamp(activeJC.billing.xeroxPhoto.timestamp)}</span>
-                            <a href={activeJC.billing.xeroxPhoto.dataUrl} target="_blank" rel="noreferrer" className="font-medium text-safety-600 hover:text-safety-700">Open</a>
+                            <button type="button" onClick={() => openImage(activeJC.billing.xeroxPhoto.dataUrl)} className="font-medium text-safety-600 hover:text-safety-700">Open</button>
                           </div>
                         </div>
                       </div>
